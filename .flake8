@@ -1,0 +1,8 @@
+[flake8]
+exclude =
+    kvax/__init__.py
+    kvax/ops/__init__.py
+    kvax/utils/__init__.py
+max-complexity = 20
+max-line-length = 88
+extend-ignore = E203

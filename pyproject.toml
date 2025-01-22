@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kvax"
+version = "0.1.0"
+description = "Fast and easy-to-use implementation of flash attention."
+readme = "README.md"
+authors = [
+    { name = "Sergei Skvortsov", email = "sergeyskv@nebius.com" }
+]
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+  "chex>=0.1.85",
+  "jax>=0.4.34",
+  "jax-triton>=0.2.0",
+  "triton>=3.1",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "kvax.__version__"}
+
+[project.optional-dependencies]
+dev = [
+  "pre-commit>=4.0.1",
+  "pytest>=6.0",
+  "click>=8.1.3",
+]
