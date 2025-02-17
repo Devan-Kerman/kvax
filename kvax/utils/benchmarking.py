@@ -570,10 +570,16 @@ def benchmark_flash_attention_triton_bwd(
             ),
         )
         if permute_tokens_for_load_balance:
-            result_triton = unpermute_tokens_context_parallelism(
-                result_triton,
+            (
+                dquery_triton,
+                dkey_triton,
+                dvalue_triton,
+                q_sids,
+            ) = unpermute_tokens_context_parallelism(
+                (*result_triton, q_sids),
                 mesh=mesh,
             )
+            result_triton = dquery_triton, dkey_triton, dvalue_triton
 
     dquery_triton, dkey_triton, dvalue_triton = result_triton
 
@@ -581,10 +587,10 @@ def benchmark_flash_attention_triton_bwd(
         q_sids[:, :, None, None] == PADDING_SEGMENT_ID, 0, dquery_triton
     )
     dkey_triton = jnp.where(
-        q_sids[:, :, None, None] == PADDING_SEGMENT_ID, 0, dkey_triton
+        kv_sids[:, :, None, None] == PADDING_SEGMENT_ID, 0, dkey_triton
     )
     dvalue_triton = jnp.where(
-        q_sids[:, :, None, None] == PADDING_SEGMENT_ID, 0, dvalue_triton
+        kv_sids[:, :, None, None] == PADDING_SEGMENT_ID, 0, dvalue_triton
     )
 
     return dquery_triton, dkey_triton, dvalue_triton

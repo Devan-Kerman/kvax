@@ -515,11 +515,21 @@ def print_mask(
         mask = np.zeros((num_rows, num_inner_blocks), dtype=np.int32)
         for row in range(num_rows):
             for shard in range(num_shards):
-                mask[row, 0 : lower[shard, row]] = 0
-                mask[row, lower[shard, row] : lower_full[shard, row]] = 1
-                mask[row, lower_full[shard, row] : upper_full[shard, row]] = 2
-                mask[row, upper_full[shard, row] : upper[shard, row]] = 1
-                mask[row, upper[shard, row] : num_inner_blocks // num_shards] = 0
+                shift = shard * num_inner_blocks // num_shards
+                mask[row, shift : shift + lower[shard, row]] = 0
+                mask[
+                    row, shift + lower[shard, row] : shift + lower_full[shard, row]
+                ] = 1
+                mask[
+                    row, shift + lower_full[shard, row] : shift + upper_full[shard, row]
+                ] = 2
+                mask[
+                    row, shift + upper_full[shard, row] : shift + upper[shard, row]
+                ] = 1
+                mask[
+                    row,
+                    shift + upper[shard, row] : shift + num_inner_blocks // num_shards,
+                ] = 0
         return mask
 
     def _average_mask_blocks(
@@ -608,8 +618,8 @@ def calculate_mask_sparsity(
             for shard in range(num_shards):
                 num_blocks_to_calculate += upper[shard, row] - lower[shard, row]
 
-    num_blocks_to_calculate /= query_seq_len * kv_seq_len
-    num_blocks_to_calculate *= query_block_size * kv_block_size
+    num_blocks_to_calculate /= query_seq_len // query_block_size
+    num_blocks_to_calculate /= kv_seq_len // kv_block_size
     num_blocks_to_calculate /= batch_size
 
     return num_blocks_to_calculate

@@ -384,9 +384,9 @@ def attn_bwd_preprocess(
     block_size: tl.constexpr,
     head_dim: tl.constexpr,
 ):
-    block_id = tl.program_id(0)
-    batch_size_id = tl.program_id(1)
-    num_heads_id = tl.program_id(2)
+    block_id = tl.program_id(0).to(tl.int64)
+    batch_size_id = tl.program_id(1).to(tl.int64)
+    num_heads_id = tl.program_id(2).to(tl.int64)
 
     init_offset = batch_size_id * stride_batch + num_heads_id * stride_heads
 
@@ -560,11 +560,11 @@ def _flash_attention_backward_kernel_dquery_inner(
     k_offsets = (
         kv_arange[None, :] * stride_k_seq_len
         + qk_head_dim_pad_arange[:, None] * stride_k_dims
-    )
+    ).to(tl.int64)
     v_offsets = (
         kv_arange[None, :] * stride_v_seq_len
         + value_head_dim_arange[:, None] * stride_v_dims
-    )
+    ).to(tl.int64)
 
     key_transpose_ref = key_ref + k_offsets
     value_transpose_ref = value_ref + v_offsets
@@ -667,8 +667,8 @@ def flash_attention_backward_kernel_dquery(
     is_context_parallelism: tl.constexpr,
 ):
     query_block_id = tl.program_id(0)
-    batch_size_id = tl.program_id(1)
-    num_heads_id = tl.program_id(2)
+    batch_size_id = tl.program_id(1).to(tl.int64)
+    num_heads_id = tl.program_id(2).to(tl.int64)
     num_query_block_programs = tl.num_programs(0)
 
     mask_offset = batch_size_id * num_query_block_programs + query_block_id
@@ -936,8 +936,8 @@ def flash_attention_backward_kernel_dkdv(
     is_context_parallelism: tl.constexpr,
 ):
     kv_block_id = tl.program_id(0)
-    batch_size_id = tl.program_id(1)
-    num_heads_id = tl.program_id(2)
+    batch_size_id = tl.program_id(1).to(tl.int64)
+    num_heads_id = tl.program_id(2).to(tl.int64)
     num_kv_block_programs = tl.num_programs(0)
 
     if is_context_parallelism:
@@ -1032,22 +1032,22 @@ def flash_attention_backward_kernel_dkdv(
     k_offsets = (
         kv_block_offset[:, None] * stride_k_seq_len
         + qk_head_dim_pad_arange[None, :] * stride_k_dims
-    )
+    ).to(tl.int64)
 
     v_offsets = (
         kv_block_offset[:, None] * stride_v_seq_len
         + value_head_dim_arange[None, :] * stride_v_dims
-    )
+    ).to(tl.int64)
 
     dk_offsets = (
         kv_block_offset[:, None] * stride_dk_seq_len
         + qk_head_dim_pad_arange[None, :] * stride_dk_dims
-    )
+    ).to(tl.int64)
 
     dv_offsets = (
         kv_block_offset[:, None] * stride_dv_seq_len
         + value_head_dim_arange[None, :] * stride_dv_dims
-    )
+    ).to(tl.int64)
 
     if even_qk_head_dims:
         key = tl.load(key_ref + k_offsets)
