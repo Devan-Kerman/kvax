@@ -295,6 +295,8 @@ A tensor or tuple of tensors with tokens in their original order.
 pip install -e .[dev]
 ```
 
+Note: The automatically installed versions of Triton and JAX-Triton may not be compatible with each other. Please ensure you install compatible versions manually. For example, for benchmarking, we used `triton==3.1` and `jax-triton==0.2.0`.
+
 Benchmarking CuDNN implementation vs our implementation:
 
 ```bash
