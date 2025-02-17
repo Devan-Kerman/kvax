@@ -14,7 +14,7 @@ During training on long sequences, dense packing is often used to maximise compu
 
 Using long sequences during training can also lead to high GPU memory consumption for storing layer activations. Context parallelism helps solve this problem, speeding up the computations and reducing memory required for layer activations.
 
-There are several approaches to implementing context parallelism for transformer architectures, such as RingAttention and all-gather based method. The all-gather based method, described in the [Llama3 training article](https://arxiv.org/abs/2407.21783), performs an all-gather on the key and value tensors, collecting tensors before attention computation due to their lower memory requirements enabled by [GQA](https://arxiv.org/abs/2305.13245). This method is particularly well-suited for document masks, and kvax leverages it in its implementation.
+There are several approaches to implementing context parallelism for transformer architectures, such as [RingAttention](https://arxiv.org/abs/2310.01889) and all-gather based method. The all-gather based method, described in the [Llama3 training article](https://arxiv.org/abs/2407.21783), performs an all-gather on the key and value tensors, collecting tensors before attention computation due to their lower memory requirements enabled by [GQA](https://arxiv.org/abs/2305.13245). This method is particularly well-suited for document masks, and kvax leverages it in its implementation.
 
 ## KVAX Features
 
@@ -37,6 +37,8 @@ Install the latest stable release from pip (Not working for now):
 ```bash
 pip install kvax
 ```
+
+Note: The automatically installed versions of Triton and JAX-Triton may not be compatible with each other. Please ensure you install compatible versions manually. For example, for benchmarking, we used `triton==3.1` and `jax-triton==0.2.0`.
 
 Install the latest version from binary wheels:
 
@@ -324,7 +326,7 @@ python3 benchmarks.py mha_cp_bwd --num-segments 3 --permute-tokens-for-load-bala
 
 - Bias is not supported.
 - Sliding window, ALiBi, and custom masks are not implemented.
-- Context parallelism does not support sharding across kv_sequence as in RingAttention.
+- Context parallelism does not support sharding across kv_sequence as in [RingAttention](https://arxiv.org/abs/2310.01889).
 
 ## Contributing
 
