@@ -379,6 +379,7 @@ def benchmark_flash_attention_triton_fwd(
     query_seq_len: int,
     kv_seq_len: int,
     show_attention_mask: bool,
+    name: str = "flash_attention_triton",
 ) -> DeviceArray:
     attn_inputs_dict, mesh, query_specs, kv_specs = inputs_dict
     attn_inputs = attn_inputs_dict["data"]
@@ -407,7 +408,7 @@ def benchmark_flash_attention_triton_fwd(
         if show_attention_mask:
             print_mask(mask[0], kv_seq_len // fwd_params.kv_block_size)
         result_triton = benchmark_fn(
-            "flash_attention_triton",
+            name,
             fn=flash_attention_triton,
             fn_args=attn_inputs,
             fn_kwargs={
@@ -505,6 +506,7 @@ def benchmark_flash_attention_triton_bwd(
     query_seq_len: int,
     kv_seq_len: int,
     show_attention_mask: bool,
+    name: str = "flash_attention_triton",
 ) -> tuple[DeviceArray, DeviceArray, DeviceArray]:
     attn_inputs_dict, mesh, query_specs, kv_specs = inputs_dict
     attn_inputs = attn_inputs_dict["data"]
@@ -546,7 +548,7 @@ def benchmark_flash_attention_triton_bwd(
             print_mask(mask[1], kv_seq_len // bwd_params.query_block_size)
             print_mask(mask[2], query_seq_len // bwd_params.query_block_size)
         result_triton = benchmark_fn(
-            "flash_attention_triton",
+            name,
             fn=jax.grad(
                 flash_mha_attention_triton_fwd_bwd,
                 argnums=(0, 1, 2),

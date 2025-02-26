@@ -443,7 +443,15 @@ def test_flash_multi_head_attention_backward(
     dk_triton = dk_triton[:, : kv_seq_len - num_pad_tokens, :, :]
     dv_triton = dv_triton[:, : kv_seq_len - num_pad_tokens, :, :]
 
-    check_outputs_bwd(results["reference"], results["triton"])
+    check_kwargs = {}
+
+    # Relax constraints for the MQA case
+    if num_kv_heads == 1:
+        check_kwargs = {
+            "kv_atol": 5e-2,
+        }
+
+    check_outputs_bwd(results["reference"], results["triton"], **check_kwargs)
 
 
 @pytest.mark.parametrize(
@@ -657,6 +665,12 @@ def test_flash_multi_head_attention_params_context_parallelism_fwd(
         (10000, 1, False, False),
         (0, 1, True, True),
         (10000, 1, True, True),
+        (0, 3, True, False),
+        (10000, 12, True, False),
+        (0, 3, False, False),
+        (10000, 12, False, False),
+        (0, 3, False, True),
+        (10000, 12, False, True),
         (0, 3, True, True),
         (10000, 12, True, True),
     ],

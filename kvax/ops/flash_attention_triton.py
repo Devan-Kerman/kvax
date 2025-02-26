@@ -1032,22 +1032,22 @@ def flash_attention_backward_kernel_dkdv(
     k_offsets = (
         kv_block_offset[:, None] * stride_k_seq_len
         + qk_head_dim_pad_arange[None, :] * stride_k_dims
-    ).to(tl.int64)
+    )
 
     v_offsets = (
         kv_block_offset[:, None] * stride_v_seq_len
         + value_head_dim_arange[None, :] * stride_v_dims
-    ).to(tl.int64)
+    )
 
     dk_offsets = (
         kv_block_offset[:, None] * stride_dk_seq_len
         + qk_head_dim_pad_arange[None, :] * stride_dk_dims
-    ).to(tl.int64)
+    )
 
     dv_offsets = (
         kv_block_offset[:, None] * stride_dv_seq_len
         + value_head_dim_arange[None, :] * stride_dv_dims
-    ).to(tl.int64)
+    )
 
     if even_qk_head_dims:
         key = tl.load(key_ref + k_offsets)

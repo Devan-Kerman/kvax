@@ -1,50 +1,45 @@
-# KVAX: fast and easy-to-use flash attention implementation for JAX
+# Kvax: fast and easy-to-use flash attention implementation for JAX
 
-kvax is an open-source library offering fast and efficient attention operations for the JAX framework. Built with [Flash Attention 2](https://arxiv.org/abs/2307.08691) algorithms implemented in the Triton language, it is optimised for high-performance attention computation with document masks and supports context parallelism. kvax is designed to perform exceptionally well in distributed training scenarios on long sequences using FSDP/HSDP sharding.
+Kvax is an open-source library offering fast and efficient attention operations for the JAX framework. Built with [Flash Attention 2](https://arxiv.org/abs/2307.08691) algorithms implemented in the Triton language, it is optimised for high-performance attention computation with document masks and supports context parallelism. Kvax is designed to perform exceptionally well in distributed training scenarios on long sequences using FSDP/HSDP sharding.
 
-## Key Concepts of KVAX Implementation
+## Key Concepts of Kvax Implementation
 
 ### Document Mask Optimisation
 
 When training transformer models on long sequences, a significant amount of compute is spent on attention operations due to the quadratic complexity of the attention algorithm. [Flash Attention algorithm](https://github.com/Dao-AILab/flash-attention) offers hardware-specific optimisations to significantly reduce latency and memory requirements for these operations.
 
-During training on long sequences, dense packing is often used to maximise compute resource utilisation. In this approach, multiple data points are packed into a single sequence while avoiding cross-sequence attention contamination. The main idea is to calculate only the blocks of attention weights that include tokens which should attend to each other while skipping other blocks. Various methods can efficiently handle this, with [PyTorch's FlexAttention](https://pytorch.org/blog/flexattention/) being one example. kvax takes a similar approach to achieve high performance in these scenarios.
+During training on long sequences, dense packing is often used to maximise compute resource utilisation. In this approach, multiple data points are packed into a single sequence while avoiding cross-sequence attention contamination. The main idea is to calculate only the blocks of attention weights that include tokens which should attend to each other while skipping other blocks. Various methods can efficiently handle this, with [PyTorch's FlexAttention](https://pytorch.org/blog/flexattention/) being one example. Kvax takes a similar approach to achieve high performance in these scenarios.
 
 ### Context Parallelism
 
 Using long sequences during training can also lead to high GPU memory consumption for storing layer activations. Context parallelism helps solve this problem, speeding up the computations and reducing memory required for layer activations.
 
-There are several approaches to implementing context parallelism for transformer architectures, such as [RingAttention](https://arxiv.org/abs/2310.01889) and all-gather based method. The all-gather based method, described in the [Llama3 training article](https://arxiv.org/abs/2407.21783), performs an all-gather on the key and value tensors, collecting tensors before attention computation due to their lower memory requirements enabled by [GQA](https://arxiv.org/abs/2305.13245). This method is particularly well-suited for document masks, and kvax leverages it in its implementation.
+There are several approaches to implementing context parallelism for transformer architectures, such as [RingAttention](https://arxiv.org/abs/2310.01889) and all-gather based method. The all-gather based method, described in the [Llama 3 training paper](https://arxiv.org/abs/2407.21783), performs an all-gather on the key and value tensors, collecting tensors before attention computation due to their lower memory requirements enabled by [GQA](https://arxiv.org/abs/2305.13245). This method is particularly well-suited for document masks, and Kvax leverages it in its implementation.
 
-## KVAX Features
+## Kvax Features
 
 - **Block-wise Attention Masks**: Like [FlexAttention](https://pytorch.org/blog/flexattention/), our implementation builds the attention mask once per forward-backward pass, reusing it across layers. Our high-performance Triton kernel builds this mask blockwise, and does not require `O(seq_len^2)` GPU memory.
 
-- **Optimised Memory Storage**: kvax stores attention masks in block-wise format, requiring `3 * 4 * batch_size * seq_len // block_size * 4 bytes` (block_size is typically 64 or 128).
+- **Optimised Memory Storage**: Kvax stores attention masks in block-wise format, requiring `3 * 4 * batch_size * seq_len // block_size * 4 bytes` (block_size is typically 64 or 128).
 
-- **Skipping Pad Tokens**: kvax skips blocks consisting entirely of padding tokens. See the "How to Use" section for details on defining padding tokens.
+- **Skipping Pad Tokens**: Kvax skips blocks consisting entirely of padding tokens. See the "How to Use" section for details on defining padding tokens.
 
-- **Context Parallelism**: kvax balances tokens across GPUs to ensure equal attention operation loads, accounting for causal masks. This feature is discribed in [Llama3 training article](https://arxiv.org/abs/2407.21783) and fully integrates with document mask optimisations.
+- **Context Parallelism**: Kvax balances tokens across GPUs to ensure equal attention operation loads, accounting for causal masks. This feature is discribed in [Llama 3 training paper](https://arxiv.org/abs/2407.21783) and fully integrates with document mask optimisations.
 
-## kvax Results
+## Kvax Results
 
 TODO: Add results
 
 ## How to install
 
-Install the latest stable release from pip (Not working for now):
+Install the latest stable release from pip:
 
 ```bash
 pip install kvax
 ```
 
-Note: The automatically installed versions of Triton and JAX-Triton may not be compatible with each other. Please ensure you install compatible versions manually. For example, for benchmarking, we used `triton==3.1` and `jax-triton==0.2.0`.
+**Note: The automatically installed versions of Triton and JAX-Triton might not be compatible. If you encounter an error while running the provided benchmarks, please ensure that you install compatible versions manually. For benchmarking, we used `triton==3.1` and `jax-triton==0.2.0`.**
 
-Install the latest version from binary wheels:
-
-```bash
-pip install --index-url https://storage.ai.nebius.cloud/pywheels-public kvax
-```
 
 ## How to use
 
@@ -208,7 +203,7 @@ The function for attention operation, based on precomputed masks and input tenso
 - `bwd_params`: `FlashAttentionParamsConfig` for the backward pass. Defaults to predefined parameters for the GPU model.
 - `assume_sequential_positions`: Assumes sequential token positions and skips loading `query_positions` and `kv_positions`. If set to `True`, the attention behaves the same as when `is_causal == True` in `jax.nn.dot_product_attention`. The default is `False`.
 - `memory_optimized_gqa_backward`: Enables memory-optimised gradient computation for grouped-query attention when set to `True`. This flag affects performance, making it slower, but can save GPU memory on activations during the backward pass if it becomes a bottleneck. It may be useful for small models with long contexts. The default is `False`.
-- `permute_tokens_for_load_balance`: Permutes tokens to achieve better load balancing across GPUs when set to True. Used only during context parallelism. For more details, refer to the [Llama3 training article](https://arxiv.org/abs/2407.21783). The default is True.
+- `permute_tokens_for_load_balance`: Permutes tokens to achieve better load balancing across GPUs when set to True. Used only during context parallelism. For more details, refer to the [Llama 3 training paper](https://arxiv.org/abs/2407.21783). The default is True.
 - `debug`: Prints the low-level IR of the kernel when set to `True`. The default is `False`.
 - `mesh`: Device mesh configuration for distributed execution. If set to `None`, it uses the mesh from the global context. An exception is raised if `None` is provided and no mesh is available from the global context. The default is `None`.
 
@@ -246,7 +241,7 @@ Segment ID for padding tokens. This value should correspond to the position of p
 
 #### **`attention_specs`**
 
-A context manager for setting the attention specifications for `query` and `key`/`value` tensors. All other specifications in the kvax are calculated based on these specifications.
+A context manager for setting the attention specifications for `query` and `key`/`value` tensors. All other specifications in the Kvax are calculated based on these specifications.
 
 **Arguments**:
 
@@ -265,7 +260,7 @@ kv_specs: ("data", None, None, None)`
 
 #### **`permute_tokens_context_parallelism`**
 
-A function to permute tokens across the sequence length `(axis==1)` to balance computation of the attention operation between GPUs for the causal mask case. For more details, please see the [Llama3 training article](https://arxiv.org/abs/2407.21783). For examples, please refer to the 'How to use' section.
+A function to permute tokens across the sequence length `(axis==1)` to balance computation of the attention operation between GPUs for the causal mask case. For more details, please see the [Llama 3 training paper](https://arxiv.org/abs/2407.21783). For examples, please refer to the 'How to use' section.
 
 **Arguments**:
 
@@ -295,7 +290,7 @@ A tensor or tuple of tensors with tokens in their original order.
 pip install -e .[dev]
 ```
 
-Note: The automatically installed versions of Triton and JAX-Triton may not be compatible with each other. Please ensure you install compatible versions manually. For example, for benchmarking, we used `triton==3.1` and `jax-triton==0.2.0`.
+**Note: The automatically installed versions of Triton and JAX-Triton might not be compatible. If you encounter an error while running the provided benchmarks, please ensure that you install compatible versions manually. For benchmarking, we used `triton==3.1` and `jax-triton==0.2.0`.**
 
 Benchmarking CuDNN implementation vs our implementation:
 
@@ -327,7 +322,7 @@ python3 benchmarks.py mha_cp_bwd --num-segments 3 --permute-tokens-for-load-bala
 ## Limitations
 
 - Bias is not supported.
-- Sliding window, ALiBi, and custom masks are not implemented.
+- Sliding window, [ALiBi](https://arxiv.org/abs/2108.12409), and custom masks are not implemented.
 - Context parallelism does not support sharding across kv_sequence as in [RingAttention](https://arxiv.org/abs/2310.01889).
 
 ## Contributing

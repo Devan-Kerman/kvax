@@ -34,8 +34,8 @@ def cli():
 @cli.command("mha")
 @click.option("--num-iters", type=int, default=10)
 @click.option("--batch-size", type=int, default=4)
-@click.option("--query-seq-len", type=int, default=32768)
-@click.option("--kv-seq-len", type=int, default=32768)
+@click.option("--query-seq-len", type=int, default=8192)
+@click.option("--kv-seq-len", type=int, default=8192)
 @click.option("--num-heads", type=int, default=16)
 @click.option("--num-kv-heads", type=int, default=16)
 @click.option("--qk-head-dim", type=int, default=128)
@@ -120,8 +120,8 @@ def mha_benchmark(
 @cli.command("mha_bwd")
 @click.option("--num-iters", type=int, default=10)
 @click.option("--batch-size", type=int, default=4)
-@click.option("--query-seq-len", type=int, default=32768)
-@click.option("--kv-seq-len", type=int, default=32768)
+@click.option("--query-seq-len", type=int, default=8192)
+@click.option("--kv-seq-len", type=int, default=8192)
 @click.option("--num-heads", type=int, default=16)
 @click.option("--num-kv-heads", type=int, default=16)
 @click.option("--qk-head-dim", type=int, default=128)
@@ -278,6 +278,7 @@ def mha_cp_fwd_benchmark(
         query_seq_len=query_seq_len,
         kv_seq_len=kv_seq_len,
         show_attention_mask=show_attention_mask,
+        name="flash_attention_triton_cp",
     )
 
     # Reshard the same inputs
@@ -297,6 +298,7 @@ def mha_cp_fwd_benchmark(
         query_seq_len=query_seq_len,
         kv_seq_len=kv_seq_len,
         show_attention_mask=show_attention_mask,
+        name="flash_attention_triton_tp",
     )
 
     # Results validation
@@ -312,7 +314,7 @@ def mha_cp_fwd_benchmark(
 @click.option("--num-kv-heads", type=int, default=8)
 @click.option("--qk-head-dim", type=int, default=128)
 @click.option("--value-head-dim", type=int, default=128)
-@click.option("--assume-sequential-positions", type=bool, default=False)
+@click.option("--assume-sequential-positions", type=bool, default=True)
 @click.option("--num-segments", type=int, default=1)
 @click.option("--permute-tokens-for-load-balance", type=bool, default=True)
 @click.option("--show-attention-mask", is_flag=True)
@@ -378,6 +380,7 @@ def mha_cp_bwd_benchmark(
         query_seq_len=query_seq_len,
         kv_seq_len=kv_seq_len,
         show_attention_mask=show_attention_mask,
+        name="flash_attention_triton_cp",
     )
 
     # Reshard the same inputs
@@ -397,6 +400,7 @@ def mha_cp_bwd_benchmark(
         query_seq_len=query_seq_len,
         kv_seq_len=kv_seq_len,
         show_attention_mask=show_attention_mask,
+        name="flash_attention_triton_tp",
     )
 
     # Results validation

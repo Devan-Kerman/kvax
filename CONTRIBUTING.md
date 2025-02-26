@@ -23,7 +23,7 @@ Next, install the required dependencies:
 pip install -e .[dev]
 ```
 
-Note: The automatically installed versions of Triton and JAX-Triton may not be compatible with each other. Please ensure you install compatible versions manually. For example, for benchmarking, we used `triton==3.1` and `jax-triton==0.2.0`.
+**Note: The automatically installed versions of Triton and JAX-Triton might not be compatible. If you encounter an error while running the provided benchmarks, please ensure that you install compatible versions manually. For benchmarking, we used `triton==3.1` and `jax-triton==0.2.0`.**
 
 ## Testing
 
