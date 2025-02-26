@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "kvax"
 version = "0.1.0"
-description = "Fast and easy-to-use implementation of flash attention."
+description = "Kvax: Fast and easy-to-use Flash Attention implementation for JAX"
 readme = "README.md"
 authors = [
     { name = "Sergei Skvortsov", email = "sergeyskv@nebius.com" }
@@ -18,6 +18,13 @@ dependencies = [
   "jax-triton>=0.2.0",
   "triton>=3.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/nebius/kvax"
+Issues = "https://github.com/nebius/kvax/issues"
+
+[tool.setuptools]
+packages = ["kvax", "kvax.ops", "kvax.utils"]
 
 [tool.setuptools.dynamic]
 version = {attr = "kvax.__version__"}

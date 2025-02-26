@@ -28,9 +28,9 @@ There are several approaches to implementing context parallelism for transformer
 
 ## Kvax Results
 
-![Comparison of attention implementations with causal masks; forward pass only](images/attn_doc.png)
+![Comparison of attention implementations with causal masks; forward pass only](assets/attn_doc.png)
 
-![Comparison of attention implementations with causal masks; forward + backward pass](images/attn_doc_bwd.png)
+![Comparison of attention implementations with causal masks; forward + backward pass](assets/attn_doc_bwd.png)
 
 More details on Kvax benchmarking and its results can be found in the article.
 
