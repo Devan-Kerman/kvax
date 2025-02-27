@@ -46,7 +46,7 @@ There are several approaches to implementing context parallelism for transformer
 
 ![Comparison of attention implementations with causal masks; forward + backward pass](assets/attn_doc_bwd.png)
 
-More details on Kvax benchmarking and its results can be found in the article.
+More details on Kvax benchmarking and its results can be found in the [blogpost](https://nebius.com/blog/posts/kvax-open-source-flash-attention-for-jax#results).
 
 ## How to install
 
