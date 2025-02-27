@@ -38,7 +38,7 @@ There are several approaches to implementing context parallelism for transformer
 
 - **Skipping Pad Tokens**: Kvax skips blocks consisting entirely of padding tokens. See the "How to Use" section for details on defining padding tokens.
 
-- **Context Parallelism**: Kvax balances tokens across GPUs to ensure equal attention operation loads, accounting for causal masks. This feature is discribed in [Llama 3 training paper](https://arxiv.org/abs/2407.21783) and fully integrates with document mask optimisations.
+- **Context Parallelism**: Kvax balances tokens across GPUs to ensure equal attention operation loads, accounting for causal masks. This feature is described in [Llama 3 training paper](https://arxiv.org/abs/2407.21783) and fully integrates with document mask optimisations.
 
 ## Kvax Results
 
@@ -76,6 +76,7 @@ kv_segment_ids = [0, 0, 0, 0, 0, PADDING_SEGMENT_ID, PADDING_SEGMENT_ID]
 Then, kvax functions can be implemented in the transformer code:
 
 ```python
+import flax.linen as nn
 from kvax.ops import (
     create_attention_mask,
     flash_attention,
