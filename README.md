@@ -2,6 +2,18 @@
 
 Kvax is an open-source library offering fast and efficient attention operations for the JAX framework. Built with [Flash Attention 2](https://arxiv.org/abs/2307.08691) algorithms implemented in the Triton language, it is optimised for high-performance attention computation with document masks and supports context parallelism. Kvax is designed to perform exceptionally well in distributed training scenarios on long sequences using FSDP/HSDP sharding.
 
+#### Table of Contents:
+- [Key Concepts of Kvax Implementation](#key-concepts-of-kvax-implementation)
+- [Kvax Features](#kvax-features)
+- [Kvax Results](#kvax-results)
+- [How to install](#how-to-install)
+- [How to use](#how-to-use)
+- [Package Description](#package-description)
+- [Benchmarks](#benchmarks)
+- [Limitations](#limitations)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Key Concepts of Kvax Implementation
 
 ### Document Mask Optimisation
@@ -333,7 +345,7 @@ python3 benchmarks.py mha_cp_bwd --num-segments 3 --permute-tokens-for-load-bala
 
 Community contributions are welcome. For more detailed information, please refer to the [contributing guidelines](CONTRIBUTING.md).
 
-### License
+## License
 
 This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for details.
 
