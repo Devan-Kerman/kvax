@@ -14,6 +14,7 @@ More technical details in our blogpost: https://nebius.com/blog/posts/kvax-open-
 - [Benchmarks](#benchmarks)
 - [Limitations](#limitations)
 - [Contributing](#contributing)
+- [Citation](#citation)
 - [License](#license)
 
 ## Key Concepts of Kvax Implementation
@@ -69,11 +70,11 @@ from kvax.utils import PADDING_SEGMENT_ID
 # In this example, the sequence length is 8, and there are 2 padding tokens.
 pad_token_id = 128001
 input_ids = [6151, 0, 52043, 710, 374, 1618, pad_token_id, pad_token_id]
-query_segment_ids = [0, 0, 0, 0, 0, PADDING_SEGMENT_ID, PADDING_SEGMENT_ID]
-kv_segment_ids = [0, 0, 0, 0, 0, PADDING_SEGMENT_ID, PADDING_SEGMENT_ID]
+query_segment_ids = [0, 0, 0, 0, 0, 0, PADDING_SEGMENT_ID, PADDING_SEGMENT_ID]
+kv_segment_ids = [0, 0, 0, 0, 0, 0, PADDING_SEGMENT_ID, PADDING_SEGMENT_ID]
 ```
 
-Then, kvax functions can be implemented in the transformer code:
+Then, kvax functions can be used in the transformer code:
 
 ```python
 import flax.linen as nn
@@ -98,27 +99,27 @@ class AttentionLayer(nn.Module):
         kv_segment_ids,
         attn_mask,
     ):
-    query, key, value = ...
-    scale = ...
+        query, key, value = ...
+        scale = ...
 
-    # Call the Flash Attention op
-    attn_out = flash_attention(
-        query=query,
-        key=key,
-        value=value,
-        query_positions=positions,
-        query_segment_ids=segment_ids,
-        kv_positions=kv_positions,
-        kv_segment_ids=kv_segment_ids,
-        mask=attn_mask,
-        assume_sequential_positions=self.config.assume_sequential_positions,
-        scale=scale,
-        # Mesh is defined as a global context
-        # mesh=mesh,
-    )
+        # Call the Flash Attention op
+        attn_out = flash_attention(
+            query=query,
+            key=key,
+            value=value,
+            query_positions=positions,
+            query_segment_ids=segment_ids,
+            kv_positions=kv_positions,
+            kv_segment_ids=kv_segment_ids,
+            mask=attn_mask,
+            assume_sequential_positions=self.config.assume_sequential_positions,
+            scale=scale,
+            # Mesh is defined as a global context
+            # mesh=mesh,
+        )
 
-    out = ...
-    return out
+        out = ...
+        return out
 
 
 class Transformer(nn.Module):
@@ -133,49 +134,49 @@ class Transformer(nn.Module):
         positions,
         segment_ids,
     ):
-    # During inference, create kv_positions and kv_segment_ids from positions and segment_ids
-    # For training they could be simply defined as:
-    # kv_positions, kv_segment_ids = positions, segment_ids
-    kv_positions, kv_segment_ids = self._maybe_cache(positions, segment_ids)
+        # During inference, create kv_positions and kv_segment_ids from positions and segment_ids
+        # For training they could be simply defined as:
+        # kv_positions, kv_segment_ids = positions, segment_ids
+        kv_positions, kv_segment_ids = self._maybe_cache(positions, segment_ids)
 
-    # Permute input tokens to balance load between GPUs during context_parallelism
-    if self._should_permute_input_tokens:
-        embeddings, query_positions, query_segment_ids = permute_tokens_context_parallelism(
-            (embeddings, positions, segment_ids),
-        )
+        # Permute input tokens to balance load between GPUs during context_parallelism
+        if self._should_permute_input_tokens:
+            embeddings, query_positions, query_segment_ids = permute_tokens_context_parallelism(
+                (embeddings, positions, segment_ids),
+            )
 
-    # Call it only once in the beginning of transformers
-    attention_mask = create_attention_mask(
-        query_positions,
-        query_segment_ids,
-        kv_positions,
-        kv_segment_ids,
-        fwd_params=self.fa_config.fwd_params,
-        bwd_params=self.fa_config.bwd_params,
-        skip_pad_tokens=self.fa_config.skip_pad_tokens,
-        calc_bwd_mask=True,
-        # Mesh is defined as a global context
-        # mesh=mesh,
-    )
-
-    # Call transformer's layers sequentially
-    for attn_layer, mlp_layer in zip(self.attn_layers, self.mlp_layers):
-        embedding = attn_layer(
-            embedding,
+        # Call it only once in the beginning of transformers
+        attention_mask = create_attention_mask(
             query_positions,
             query_segment_ids,
             kv_positions,
             kv_segment_ids,
-            attention_mask,
+            fwd_params=self.fa_config.fwd_params,
+            bwd_params=self.fa_config.bwd_params,
+            skip_pad_tokens=self.fa_config.skip_pad_tokens,
+            calc_bwd_mask=True,
+            # Mesh is defined as a global context
+            # mesh=mesh,
         )
-        embedding = mlp_layer(...)
 
-    # Unpermute outputs
-    if self._should_permute_input_tokens:
-        embeddings = unpermute_tokens_context_parallelism(embeddings)
+        # Call transformer's layers sequentially
+        for attn_layer, mlp_layer in zip(self.attn_layers, self.mlp_layers):
+            embedding = attn_layer(
+                embedding,
+                query_positions,
+                query_segment_ids,
+                kv_positions,
+                kv_segment_ids,
+                attention_mask,
+            )
+            embedding = mlp_layer(...)
 
-    logits = ...
-    return logits
+        # Unpermute outputs
+        if self._should_permute_input_tokens:
+            embeddings = unpermute_tokens_context_parallelism(embeddings)
+
+        logits = ...
+        return logits
 
 
 def training_loop(...):
@@ -190,7 +191,6 @@ def training_loop(...):
         kv_specs=("data", None, None, None),
     ):
         ...
-
         logits = Transformer(...)(
             embeddings,
             positions,
@@ -348,6 +348,24 @@ python3 benchmarks.py mha_cp_bwd --num-segments 3 --permute-tokens-for-load-bala
 
 Community contributions are welcome. For more detailed information, please refer to the [contributing guidelines](CONTRIBUTING.md).
 
+## Citation
+
+Please cite as:
+
+```
+Skvortsov et al., "Kvax: Fast and easy-to-use Flash Attention implementation for JAX", Nebius blog, 2025.
+```
+
+BibTeX citation:
+```
+@article{skvortsov2025kvax,
+  title={Kvax: Fast and easy-to-use Flash Attention implementation for JAX},
+  author={Skvortsov, Sergei and Fisin, Filipp and Trofimova, Maria and Yangel, Boris},
+  year={2025},
+  journal={Nebius blog},
+  note={}
+}
+```
 ## License
 
 This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for details.
