@@ -2,7 +2,7 @@
 
 Kvax is an open-source library offering fast and efficient attention operations for the JAX framework. Built with [Flash Attention 2](https://arxiv.org/abs/2307.08691) algorithms implemented in the Triton language, it is optimised for high-performance attention computation with document masks and supports context parallelism. Kvax is designed to perform exceptionally well in distributed training scenarios on long sequences using FSDP/HSDP sharding.
 
-Our blog post: https://preview.nebius.ai/blog/posts/kvax-open-source-flash-attention-for-jax
+More technical details in our blogpost: https://nebius.com/blog/posts/kvax-open-source-flash-attention-for-jax
 
 #### Table of Contents:
 - [Key Concepts of Kvax Implementation](#key-concepts-of-kvax-implementation)
