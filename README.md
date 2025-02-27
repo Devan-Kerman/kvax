@@ -145,7 +145,7 @@ class Transformer(nn.Module):
                 (embeddings, positions, segment_ids),
             )
 
-        # Call it only once in the beginning of transformers
+        # Call it once and then pass the mask into all attention blocks
         attention_mask = create_attention_mask(
             query_positions,
             query_segment_ids,
