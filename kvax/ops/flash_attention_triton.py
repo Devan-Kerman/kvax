@@ -2008,6 +2008,22 @@ def _make_flash_attention_partition_specs(
     return tuple(in_specs), out_specs
 
 
+def get_identity_with_bwd_dtype_convert(dtype: jnp.dtype):
+    @jax.custom_vjp
+    def identity_fn(x):
+        return x
+
+    def identity_fn_fwd(x):
+        return x, None
+
+    def identity_fn_bwd(res, g):
+        return (g.astype(dtype),)
+
+    identity_fn.defvjp(identity_fn_fwd, identity_fn_bwd)
+
+    return identity_fn
+
+
 def flash_attention_triton(
     query: DeviceArray,
     key: DeviceArray,
@@ -2087,6 +2103,16 @@ def flash_attention_triton(
 
     if bwd_params is None:
         bwd_params = get_default_flash_attention_params(backward=True)
+
+    # When using context parallelism, dv and dk returned from
+    # flash attention triton kernel in fp32
+    # to make more precise AllReduce. This leads to a very weird
+    # behavior when using jax.lax.cond in backward pass
+    # where one of the branches return fp32 tensor (gradient of the k/v)
+    # So we need to convert them back to the original dtype.
+    identity_fn = get_identity_with_bwd_dtype_convert(query.dtype)
+    key = identity_fn(key)
+    value = identity_fn(value)
 
     # Predefine static parameters for flash attention function.
     flash_attention_fn = functools.partial(
