@@ -583,7 +583,7 @@ def print_mask(
             np.ceil(num_inner_blocks / MAX_NUM_COLUMNS), 1
         ).astype(np.int32)
         rows_step = np.maximum(np.ceil(num_rows / MAX_NUM_ROWS), 1).astype(np.int32)
-        if fit_in_screen and columns_step > 1 and rows_step > 1:
+        if fit_in_screen and (columns_step > 1 or rows_step > 1):
             mask_np = _average_mask_blocks(mask_np, rows_step, columns_step)
 
         lines = _mask_to_list_of_string(mask_np)
