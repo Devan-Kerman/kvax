@@ -3,7 +3,7 @@
 import jax
 import jax.numpy as jnp
 
-from kvax.ops.flash_attention_clean import flash_attention, create_attention_mask
+from kvax.ops import flash_attention, create_attention_mask
 from kvax.utils.common import PADDING_SEGMENT_ID
 
 

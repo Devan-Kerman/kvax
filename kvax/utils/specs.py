@@ -1,3 +1,4 @@
+import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import IntEnum
@@ -93,6 +94,9 @@ def attention_specs(query_specs: Specs, kv_specs: Specs) -> Generator[None, None
     A context manager for setting the attention specifications
     for query and key, value tensors.
 
+    DEPRECATED: This context manager API is deprecated. Use the clean API by importing
+    from kvax.ops directly and passing mesh/specs as function arguments instead.
+
     Args:
         query_specs (Specs): Specifications for sharding the query tensor.
         kv_specs (Specs): Specifications for sharding the key and value tensors.
@@ -100,6 +104,12 @@ def attention_specs(query_specs: Specs, kv_specs: Specs) -> Generator[None, None
     Yields:
         None
     """
+    warnings.warn(
+        "attention_specs context manager is deprecated. Use the clean API by importing "
+        "from kvax.ops and passing mesh/specs as function arguments instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     old_query_specs = _attention_specs.query_specs
     old_kv_specs = _attention_specs.kv_specs
 

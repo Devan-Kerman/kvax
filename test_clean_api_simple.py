@@ -3,7 +3,7 @@
 import jax
 import jax.numpy as jnp
 
-from kvax.ops.flash_attention_clean import flash_attention
+from kvax.ops import flash_attention
 
 
 def test_no_mask():

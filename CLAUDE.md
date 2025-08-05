@@ -58,28 +58,24 @@ python3 benchmarks.py mha --num-segments 3 --show-attention-mask
 
 ### Core Package Structure
 - **kvax.ops**: Flash attention implementations
-  - `flash_attention_triton.py`: Main Triton-based implementation (original API)
-  - `flash_attention_clean.py`: Simplified API without context managers
+  - `flash_attention_clean.py`: Main API implementation (clean, no context managers)
+  - `flash_attention_triton.py`: Core Triton kernel implementation
   - `flash_attention_cudnn.py`: CuDNN reference implementation for benchmarking
   - `mask_creator.py`: Block-wise attention mask generation
 - **kvax.utils**: Utilities and configuration
   - `common.py`: Configuration dataclasses and constants (FlashAttentionParamsConfig, PADDING_SEGMENT_ID)
-  - `specs.py`: Sharding specification context manager
+  - `specs.py`: Legacy sharding specifications (deprecated)
   - `permutation.py`: Token permutation for context parallelism load balancing
   - `sharding.py`: JAX sharding utilities
 
 ### Key Concepts
 
-#### Two API Styles
-1. **Clean API (Recommended)**: Direct function calls without context managers
-   - Import from `kvax.ops.flash_attention_clean`
-   - Mesh and sharding specs passed as function arguments
-   - Works seamlessly on single device (no mesh/specs needed) or multi-device
-   
-2. **Original API**: Uses context managers for mesh and sharding configuration
-   - Import from `kvax.ops` 
-   - Requires `attention_specs()` context manager
-   - Must be used within JAX mesh context
+#### Unified Clean API
+- Import from `kvax.ops` (no submodule needed)
+- Direct function calls without context managers
+- Mesh and sharding specs passed as function arguments
+- Works seamlessly on single device (no mesh/specs needed) or multi-device
+- Follows JAX shard_map patterns for familiar usage
 
 #### Flash Attention Implementation
 - Built on Triton kernels for GPU optimization
@@ -121,3 +117,8 @@ python3 benchmarks.py mha --num-segments 3 --show-attention-mask
 - isort import sorting
 - flake8 linting
 - Pre-commit hooks enforce standards automatically
+
+#### Migration from Legacy API
+- Old context manager API (`attention_specs`) is deprecated with warnings
+- Internal benchmarking/testing may still use legacy API
+- All new code should use the clean API: `from kvax.ops import flash_attention, create_attention_mask`

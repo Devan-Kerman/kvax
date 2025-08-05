@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 from jax.sharding import Mesh
 
-from kvax.ops.flash_attention_clean import flash_attention, create_attention_mask
+from kvax.ops import flash_attention, create_attention_mask
 from kvax.utils.common import PADDING_SEGMENT_ID
 
 # Example 1: Single device usage (no mesh needed)
