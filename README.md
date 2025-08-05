@@ -10,7 +10,11 @@ More technical details in our blogpost: https://nebius.com/blog/posts/kvax-open-
 - [Kvax Results](#kvax-results)
 - [How to install](#how-to-install)
 - [How to use](#how-to-use)
+  - [Using the Clean API (Recommended)](#using-the-clean-api-recommended)
+  - [Using the Original API (with Context Managers)](#using-the-original-api-with-context-managers)
 - [Package Description](#package-description)
+  - [Clean API Functions](#clean-api-functions-recommended)
+  - [Original API Functions](#original-api-functions-with-context-managers)
 - [Benchmarks](#benchmarks)
 - [Limitations](#limitations)
 - [Contributing](#contributing)
@@ -74,7 +78,157 @@ query_segment_ids = [0, 0, 0, 0, 0, 0, PADDING_SEGMENT_ID, PADDING_SEGMENT_ID]
 kv_segment_ids = [0, 0, 0, 0, 0, 0, PADDING_SEGMENT_ID, PADDING_SEGMENT_ID]
 ```
 
-Then, kvax functions can be used in the transformer code:
+### Using the Clean API (Recommended)
+
+Kvax now provides a cleaner API that doesn't require context managers and can work seamlessly on single or multiple devices:
+
+#### Single Device Usage
+
+```python
+from kvax.ops.flash_attention_clean import flash_attention, create_attention_mask
+import jax.numpy as jnp
+
+# Create your tensors
+batch_size = 2
+seq_len = 128
+num_heads = 8
+head_dim = 64
+
+query = jnp.ones((batch_size, seq_len, num_heads, head_dim))
+key = jnp.ones((batch_size, seq_len, num_heads, head_dim))
+value = jnp.ones((batch_size, seq_len, num_heads, head_dim))
+
+positions = jnp.arange(seq_len)[None, :].repeat(batch_size, axis=0)
+segment_ids = jnp.zeros((batch_size, seq_len), dtype=jnp.int32)
+
+# Create mask - no mesh or specs needed!
+mask = create_attention_mask(
+    positions, segment_ids, positions, segment_ids
+)
+
+# Run attention - no context managers!
+output = flash_attention(
+    query, key, value,
+    positions, segment_ids, positions, segment_ids,
+    mask,
+    scale=1.0 / jnp.sqrt(head_dim),
+)
+```
+
+#### Multi-Device Usage with Sharding
+
+```python
+from jax.sharding import Mesh
+import jax
+
+# Create a mesh
+devices = jax.devices()[:2]
+mesh = Mesh(devices, axis_names=('data',))
+
+# Define sharding specs - just like shard_map!
+query_spec = ('data', None, None, None)  # Shard on batch dimension
+kv_spec = ('data', None, None, None)
+
+# Create mask
+mask = create_attention_mask(
+    positions, segment_ids, positions, segment_ids,
+    mesh=mesh,
+    query_spec=query_spec,
+    kv_spec=kv_spec,
+)
+
+# Run attention - clean and simple!
+output = flash_attention(
+    query, key, value,
+    positions, segment_ids, positions, segment_ids,
+    mask,
+    mesh=mesh,
+    query_spec=query_spec,
+    kv_spec=kv_spec,
+    scale=1.0 / jnp.sqrt(head_dim),
+)
+```
+
+#### Context Parallelism with Clean API
+
+```python
+# Assume we have 4 devices in a 2x2 grid
+devices = jax.devices()[:4]
+mesh = Mesh(devices.reshape(2, 2), axis_names=('data', 'sequence'))
+
+batch_size = 2
+seq_len = 1024  # Will be split across sequence dimension
+num_heads = 16
+head_dim = 64
+
+# Create inputs
+query = jnp.ones((batch_size, seq_len, num_heads, head_dim))
+key = jnp.ones((batch_size, seq_len, num_heads, head_dim))
+value = jnp.ones((batch_size, seq_len, num_heads, head_dim))
+
+positions = jnp.arange(seq_len)[None, :].repeat(batch_size, axis=0)
+segment_ids = jnp.zeros((batch_size, seq_len), dtype=jnp.int32)
+
+# Sharding for context parallelism
+query_spec = ('data', 'sequence', None, None)  # Shard on batch AND sequence
+kv_spec = ('data', None, None, None)  # KV only sharded on batch
+
+# Create mask
+mask = create_attention_mask(
+    positions, segment_ids, positions, segment_ids,
+    mesh=mesh,
+    query_spec=query_spec,
+    kv_spec=kv_spec,
+)
+
+# Run attention with context parallelism
+output = flash_attention(
+    query, key, value,
+    positions, segment_ids, positions, segment_ids,
+    mask,
+    mesh=mesh,
+    query_spec=query_spec,
+    kv_spec=kv_spec,
+    scale=1.0 / jnp.sqrt(head_dim),
+)
+```
+
+#### Migration from Original API
+
+Migrating to the clean API is straightforward:
+
+1. **Import from the clean module**: 
+   ```python
+   # Old
+   from kvax.ops import flash_attention, create_attention_mask
+   
+   # New
+   from kvax.ops.flash_attention_clean import flash_attention, create_attention_mask
+   ```
+
+2. **Remove context managers**:
+   ```python
+   # Old
+   with mesh:
+       with attention_specs(query_spec, kv_spec):
+           mask = create_attention_mask(...)
+           output = flash_attention(...)
+   
+   # New
+   mask = create_attention_mask(..., mesh=mesh, query_spec=query_spec, kv_spec=kv_spec)
+   output = flash_attention(..., mesh=mesh, query_spec=query_spec, kv_spec=kv_spec)
+   ```
+
+3. **For single device, omit mesh and specs entirely**:
+   ```python
+   # No mesh or specs needed for single device!
+   mask = create_attention_mask(positions, segment_ids, positions, segment_ids)
+   output = flash_attention(query, key, value, positions, segment_ids, positions, segment_ids, mask)
+   ```
+
+### Using the Original API (with Context Managers)
+
+Alternatively, kvax functions can be used in the transformer code with context managers:
 
 ```python
 import flax.linen as nn
@@ -203,7 +357,38 @@ def training_loop(...):
 
 ### Operations
 
-#### **`flash_attention`**
+#### Clean API Functions (Recommended)
+
+The clean API provides simplified functions that don't require context managers:
+
+##### **`flash_attention` (clean API)**
+
+Located in `kvax.ops.flash_attention_clean`, this function provides a cleaner interface for flash attention without requiring context managers.
+
+**Arguments**:
+- All the same arguments as the original `flash_attention`
+- `mesh`: Optional device mesh. If `None`, runs on single device without sharding
+- `query_spec`: Query sharding spec (e.g., `('data', 'sequence', None, None)`). Required when `mesh` is provided
+- `kv_spec`: KV sharding spec (e.g., `('data', None, None, None)`). Required when `mesh` is provided
+
+**Key differences from original API**:
+- No context manager required
+- Works on single device when `mesh=None`
+- Mesh and specs passed directly as arguments
+
+##### **`create_attention_mask` (clean API)**
+
+Located in `kvax.ops.flash_attention_clean`, creates attention masks without context managers.
+
+**Arguments**:
+- All the same arguments as the original `create_attention_mask`
+- `mesh`: Optional device mesh. If `None`, creates mask for single device
+- `query_spec`: Query sharding spec. Required when `mesh` is provided
+- `kv_spec`: KV sharding spec. Required when `mesh` is provided
+
+#### Original API Functions (with Context Managers)
+
+##### **`flash_attention`**
 
 The function for attention operation, based on precomputed masks and input tensor sharding specifications. Should be used within the attention_specs context manager.
 

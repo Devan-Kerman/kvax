@@ -11,7 +11,7 @@ import jax.lax
 import jax.numpy as jnp
 import numpy as np
 from jax.experimental import mesh_utils
-from jax.sharding import Mesh, PositionalSharding
+from jax.sharding import Mesh, NamedSharding, PartitionSpec
 
 from kvax.ops.flash_attention_cudnn import create_cudnn_attn_mask, flash_attention_cudnn
 from kvax.ops.flash_attention_triton import flash_attention_triton
@@ -210,32 +210,38 @@ def shard_input_data(
     else:
         raise ValueError(f"Parallelism type {parallelism_type} is not supported")
 
-    sharding = PositionalSharding(device_mesh)
-    query = jax.device_put(query, sharding)
+    # Create sharding for query using NamedSharding
+    query_sharding = NamedSharding(mesh, PartitionSpec(*query_specs))
+    query = jax.device_put(query, query_sharding)
     logger.info(f"Query head dimension will be sharded across {num_devices} device(s)")
+    
     if shard_kv:
-        key = jax.device_put(key, sharding)
-        value = jax.device_put(value, sharding)
+        # Use same sharding for key and value
+        kv_sharding = NamedSharding(mesh, PartitionSpec(*query_specs))
+        key = jax.device_put(key, kv_sharding)
+        value = jax.device_put(value, kv_sharding)
         kv_specs = query_specs
         logger.info(f"KV head dimension will be sharded across {num_devices} device(s)")
     else:
         # This makes sense if the number of KV heads is small (e.g. 1)
-        replicated_sharding = PositionalSharding(device_mesh).replicate()
-        replicated_sharding = replicated_sharding.reshape([1] * key.ndim)
-
+        # Replicate key and value across all devices
+        replicated_spec = PartitionSpec("data", None, None, None)
+        replicated_sharding = NamedSharding(mesh, replicated_spec)
+        
         key = jax.device_put(key, replicated_sharding)
         value = jax.device_put(value, replicated_sharding)
         kv_specs = ("data", None, None, None)
         logger.info("KV head dimension will be replicated across devices")
 
     # Replicate other inputs
-    replicated_sharding = PositionalSharding(device_mesh).replicate()
-    replicated_sharding = replicated_sharding.reshape([1] * q_pos.ndim)
-
-    q_pos = jax.device_put(q_pos, replicated_sharding)
-    q_sids = jax.device_put(q_sids, replicated_sharding)
-    kv_pos = jax.device_put(kv_pos, replicated_sharding)
-    kv_sids = jax.device_put(kv_sids, replicated_sharding)
+    # For 2D tensors (batch, sequence)
+    replicated_2d_spec = PartitionSpec("data", None)
+    replicated_2d_sharding = NamedSharding(mesh, replicated_2d_spec)
+    
+    q_pos = jax.device_put(q_pos, replicated_2d_sharding)
+    q_sids = jax.device_put(q_sids, replicated_2d_sharding)
+    kv_pos = jax.device_put(kv_pos, replicated_2d_sharding)
+    kv_sids = jax.device_put(kv_sids, replicated_2d_sharding)
 
     sharded_inputs = {
         "data": (query, key, value, q_pos, q_sids, kv_pos, kv_sids),

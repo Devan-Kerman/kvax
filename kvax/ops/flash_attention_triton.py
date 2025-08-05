@@ -6,6 +6,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import jax_triton as jt
+import numpy as np
 import triton
 import triton.language as tl
 from jax.ad_checkpoint import checkpoint_name
@@ -24,8 +25,8 @@ from kvax.utils.typing import AttentionMask, DeviceArray, Specs
 
 logger = logging.getLogger(__name__)
 
-LOG2_CONST: tl.constexpr = 1.4426950408889634  # = 1.0 / ln(2)
-NEG_INF: tl.constexpr = jnp.iinfo(jnp.int32).min
+LOG2_CONST = tl.constexpr(1.4426950408889634)  # = 1.0 / ln(2)
+NEG_INF = tl.constexpr(float(jnp.iinfo(jnp.int32).min))
 
 
 @triton.jit
@@ -107,7 +108,7 @@ def _flash_attention_forward_kernel_inner(
                     query_positions_block, kv_positions_block, False
                 )
             if use_segment_mask:
-                mask = causal_mask and mask
+                mask = causal_mask & mask
             else:
                 mask = causal_mask
 
@@ -121,9 +122,9 @@ def _flash_attention_forward_kernel_inner(
         # Flash Attention 2 accumulation
         p = tl.math.exp2(attn_weights)
         l_new = tl.sum(p, axis=1)
-        alpha = tl.math.exp2(m - m_new)
-        l = l * alpha + l_new  # noqa: E741
-        acc *= alpha[:, None]
+        alpha = tl.math.exp2(m - m_new).to(tl.float32)
+        l = (l * alpha + l_new).to(tl.float32)  # noqa: E741
+        acc = (acc * alpha[:, None]).to(tl.float32)
         value = tl.load(value_block_ptr)
         acc += tl.dot(p.to(value_block_ptr.type.element_ty), value)
         m = m_new
@@ -260,7 +261,6 @@ def flash_attention_forward_kernel(
     # Load scales
     q_scale = scale
     q_scale *= LOG2_CONST
-    q_scale = q_scale.to(tl.float32)
 
     if even_qk_head_dims:
         query_block = tl.load(query_block_ptr)
@@ -495,7 +495,7 @@ def _flash_attention_backward_kernel_dkdv_inner(
                     query_positions_block, kv_positions_block, True
                 )
             if use_segment_mask:
-                mask = causal_mask and mask
+                mask = causal_mask & mask
             else:
                 mask = causal_mask
 
@@ -597,7 +597,7 @@ def _flash_attention_backward_kernel_dquery_inner(
                     query_positions, kv_positions_block, False
                 )
             if use_segment_mask:
-                mask = causal_mask and mask
+                mask = causal_mask & mask
             else:
                 mask = causal_mask
 
@@ -745,7 +745,8 @@ def flash_attention_backward_kernel_dquery(
     dout = tl.load(dout_ref + out_offsets)
     dquery = tl.zeros([query_block_size, qk_head_dim_pad], dtype=tl.float32)
 
-    qk_scale = (scale * LOG2_CONST).to(tl.float32)
+    # Fixed for Triton 3.3.1 compatibility - constexpr doesn't have .to() method
+    qk_scale = scale * LOG2_CONST  # Triton will handle type conversion automatically
 
     if even_qk_head_dims:
         query = tl.load(query_ref + query_offsets)
@@ -859,7 +860,8 @@ def flash_attention_backward_kernel_dquery(
         assume_sequential_positions=assume_sequential_positions,
     )
 
-    dquery *= scale.to(tl.float32)
+    # Fixed for Triton 3.3.1 compatibility
+    dquery *= scale  # Triton will handle type conversion automatically
     # Write back dQ.
     if even_qk_head_dims:
         tl.store(dquery_ref + query_offsets, dquery.to(dquery_ref.type.element_ty))
@@ -1021,7 +1023,8 @@ def flash_attention_backward_kernel_dkdv(
     qk_head_dim_pad_arange = tl.arange(0, qk_head_dim_pad)
     value_head_dim_arange = tl.arange(0, value_head_dim)
 
-    qk_scale = (scale * LOG2_CONST).to(tl.float32)
+    # Fixed for Triton 3.3.1 compatibility - constexpr doesn't have .to() method
+    qk_scale = scale * LOG2_CONST  # Triton will handle type conversion automatically
 
     kv_block_offset = kv_block_id * kv_block_size + tl.arange(0, kv_block_size)
 
@@ -1166,7 +1169,8 @@ def flash_attention_backward_kernel_dkdv(
         assume_sequential_positions=assume_sequential_positions,
     )
 
-    dkey *= scale.to(tl.float32)
+    # Fixed for Triton 3.3.1 compatibility
+    dkey *= scale  # Triton will handle type conversion automatically
     # Save dk and dv
     if memory_optimized_gqa_backward:
         tl.atomic_add(dvalue_ref + dv_offsets, dvalue.to(dvalue_ref.type.element_ty))
@@ -1527,7 +1531,7 @@ def flash_attention_triton_forward(
         lower_full_bounds,
         upper_full_bounds,
         query_global_offset,
-        scale,
+        np.float32(scale),  # Cast to numpy float32 to avoid float64 issues
         *jt.strides_from_shape(query.shape),
         *jt.strides_from_shape(key.shape),
         *jt.strides_from_shape(value.shape),
@@ -1753,7 +1757,7 @@ def flash_attention_backward(
             lower_full_bounds_dquery,
             upper_full_bounds_dquery,
             query_global_offset_dq,
-            scale,
+            np.float32(scale),  # Cast to numpy float32 to avoid float64 issues
             *jt.strides_from_shape(query.shape),
             *jt.strides_from_shape(key.shape),
             *jt.strides_from_shape(value.shape),
@@ -1791,7 +1795,7 @@ def flash_attention_backward(
             lower_full_bounds_dkdv,
             upper_full_bounds_dkdv,
             query_global_offset_dkdv,
-            scale,
+            np.float32(scale),  # Cast to numpy float32 to avoid float64 issues
             *jt.strides_from_shape(query.shape),
             *jt.strides_from_shape(key.shape),
             *jt.strides_from_shape(value.shape),
@@ -1836,7 +1840,7 @@ def flash_attention_backward(
             lower_full_bounds_dkdv,
             upper_full_bounds_dkdv,
             query_global_offset,
-            scale,
+            np.float32(scale),  # Cast to numpy float32 to avoid float64 issues
             *jt.strides_from_shape(query.shape),
             *jt.strides_from_shape(key.shape),
             *jt.strides_from_shape(value.shape),
@@ -2008,21 +2012,6 @@ def _make_flash_attention_partition_specs(
     return tuple(in_specs), out_specs
 
 
-def get_identity_with_bwd_dtype_convert(dtype: jnp.dtype):
-    @jax.custom_vjp
-    def identity_fn(x):
-        return x
-
-    def identity_fn_fwd(x):
-        return x, None
-
-    def identity_fn_bwd(res, g):
-        return (g.astype(dtype),)
-
-    identity_fn.defvjp(identity_fn_fwd, identity_fn_bwd)
-
-    return identity_fn
-
 
 def flash_attention_triton(
     query: DeviceArray,
@@ -2104,15 +2093,6 @@ def flash_attention_triton(
     if bwd_params is None:
         bwd_params = get_default_flash_attention_params(backward=True)
 
-    # When using context parallelism, dv and dk returned from
-    # flash attention triton kernel in fp32
-    # to make more precise AllReduce. This leads to a very weird
-    # behavior when using jax.lax.cond in backward pass
-    # where one of the branches return fp32 tensor (gradient of the k/v)
-    # So we need to convert them back to the original dtype.
-    identity_fn = get_identity_with_bwd_dtype_convert(query.dtype)
-    key = identity_fn(key)
-    value = identity_fn(value)
 
     # Predefine static parameters for flash attention function.
     flash_attention_fn = functools.partial(
