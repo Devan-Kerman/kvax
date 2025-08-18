@@ -10,11 +10,11 @@ More technical details in our blogpost: https://nebius.com/blog/posts/kvax-open-
 - [Kvax Results](#kvax-results)
 - [How to install](#how-to-install)
 - [How to use](#how-to-use)
-  - [Using the Clean API (Recommended)](#using-the-clean-api-recommended)
-  - [Using the Original API (with Context Managers)](#using-the-original-api-with-context-managers)
+  - [Basic Usage](#basic-usage)
+  - [Multi-Device Usage with Sharding](#multi-device-usage-with-sharding)
+  - [Context Parallelism](#context-parallelism)
+  - [Legacy API (Deprecated)](#legacy-api-deprecated)
 - [Package Description](#package-description)
-  - [Clean API Functions](#clean-api-functions-recommended)
-  - [Original API Functions](#original-api-functions-with-context-managers)
 - [Benchmarks](#benchmarks)
 - [Limitations](#limitations)
 - [Contributing](#contributing)
@@ -61,6 +61,12 @@ Install the latest stable release from pip:
 pip install kvax
 ```
 
+Or install directly from the wheel:
+
+```bash
+pip install https://ueaj.dev/python/kvax-0.1.1-py3-none-any.whl
+```
+
 **Note: The automatically installed versions of Triton and JAX-Triton might not be compatible. If you encounter an error while running the provided benchmarks, please ensure that you install compatible versions manually. For benchmarking, we used `triton==3.1` and `jax-triton==0.2.0`.**
 
 
@@ -78,14 +84,14 @@ query_segment_ids = [0, 0, 0, 0, 0, 0, PADDING_SEGMENT_ID, PADDING_SEGMENT_ID]
 kv_segment_ids = [0, 0, 0, 0, 0, 0, PADDING_SEGMENT_ID, PADDING_SEGMENT_ID]
 ```
 
-### Using the Clean API (Recommended)
+### Basic Usage
 
-Kvax now provides a cleaner API that doesn't require context managers and can work seamlessly on single or multiple devices:
+Kvax provides a simple API that doesn't require context managers and can work seamlessly on single or multiple devices:
 
 #### Single Device Usage
 
 ```python
-from kvax.ops.flash_attention_clean import flash_attention, create_attention_mask
+from kvax.ops import flash_attention, create_attention_mask
 import jax.numpy as jnp
 
 # Create your tensors
@@ -149,7 +155,7 @@ output = flash_attention(
 )
 ```
 
-#### Context Parallelism with Clean API
+### Context Parallelism
 
 ```python
 # Assume we have 4 devices in a 2x2 grid
@@ -193,42 +199,11 @@ output = flash_attention(
 )
 ```
 
-#### Migration from Original API
+### Legacy API (Deprecated)
 
-Migrating to the clean API is straightforward:
+**Note: This API is deprecated and will show warnings. Use the main API above instead.**
 
-1. **Import from the clean module**: 
-   ```python
-   # Old
-   from kvax.ops import flash_attention, create_attention_mask
-   
-   # New
-   from kvax.ops.flash_attention_clean import flash_attention, create_attention_mask
-   ```
-
-2. **Remove context managers**:
-   ```python
-   # Old
-   with mesh:
-       with attention_specs(query_spec, kv_spec):
-           mask = create_attention_mask(...)
-           output = flash_attention(...)
-   
-   # New
-   mask = create_attention_mask(..., mesh=mesh, query_spec=query_spec, kv_spec=kv_spec)
-   output = flash_attention(..., mesh=mesh, query_spec=query_spec, kv_spec=kv_spec)
-   ```
-
-3. **For single device, omit mesh and specs entirely**:
-   ```python
-   # No mesh or specs needed for single device!
-   mask = create_attention_mask(positions, segment_ids, positions, segment_ids)
-   output = flash_attention(query, key, value, positions, segment_ids, positions, segment_ids, mask)
-   ```
-
-### Using the Original API (with Context Managers)
-
-Alternatively, kvax functions can be used in the transformer code with context managers:
+The legacy API uses context managers and requires separate imports:
 
 ```python
 import flax.linen as nn
@@ -357,36 +332,44 @@ def training_loop(...):
 
 ### Operations
 
-#### Clean API Functions (Recommended)
+#### **`flash_attention`**
 
-The clean API provides simplified functions that don't require context managers:
-
-##### **`flash_attention` (clean API)**
-
-Located in `kvax.ops.flash_attention_clean`, this function provides a cleaner interface for flash attention without requiring context managers.
+The main function for attention operations. Import from `kvax.ops`.
 
 **Arguments**:
-- All the same arguments as the original `flash_attention`
-- `mesh`: Optional device mesh. If `None`, runs on single device without sharding
+- `query`: Query tensor of shape `(batch_size, query_seq_length, num_heads, head_dim)`
+- `key`: Key tensor of shape `(batch_size, kv_seq_length, num_kv_heads, head_dim)`
+- `value`: Value tensor of shape `(batch_size, kv_seq_length, num_kv_heads, head_dim)`
+- `query_positions`: Query positions tensor with shape `(batch_size, query_seq_length)`
+- `query_segment_ids`: Query segment IDs tensor with shape `(batch_size, query_seq_length)`
+- `kv_positions`: Key/value positions tensor with shape `(batch_size, kv_seq_length)`
+- `kv_segment_ids`: Key/value segment IDs tensor with shape `(batch_size, kv_seq_length)`
+- `mask`: Precomputed attention mask from `create_attention_mask`
+- `mesh`: Optional device mesh. If `None`, runs on single device
 - `query_spec`: Query sharding spec (e.g., `('data', 'sequence', None, None)`). Required when `mesh` is provided
 - `kv_spec`: KV sharding spec (e.g., `('data', None, None, None)`). Required when `mesh` is provided
+- `scale`: Scaling factor for attention scores. Default is `1.0`
+- Other parameters for performance tuning and debugging
 
-**Key differences from original API**:
-- No context manager required
-- Works on single device when `mesh=None`
-- Mesh and specs passed directly as arguments
+**Returns**: Tensor with attention-weighted values
 
-##### **`create_attention_mask` (clean API)**
+#### **`create_attention_mask`**
 
-Located in `kvax.ops.flash_attention_clean`, creates attention masks without context managers.
+Creates attention masks for flash attention operations. Import from `kvax.ops`.
 
 **Arguments**:
-- All the same arguments as the original `create_attention_mask`
+- `query_positions`: Query positions tensor
+- `query_segment_ids`: Query segment IDs tensor  
+- `kv_positions`: Key/value positions tensor
+- `kv_segment_ids`: Key/value segment IDs tensor
 - `mesh`: Optional device mesh. If `None`, creates mask for single device
 - `query_spec`: Query sharding spec. Required when `mesh` is provided
 - `kv_spec`: KV sharding spec. Required when `mesh` is provided
+- Other parameters for mask configuration
 
-#### Original API Functions (with Context Managers)
+**Returns**: Attention mask tuple for forward (and optionally backward) passes
+
+#### Legacy API Functions (Deprecated)
 
 ##### **`flash_attention`**
 
@@ -443,7 +426,9 @@ Dataclass that contains parameters for the Flash Attention Triton kernel. Increa
 
 Segment ID for padding tokens. This value should correspond to the position of padding tokens in the `kv_segment_ids` and `query_segment_ids` tensors. See the 'How to use' section for an example.
 
-#### **`attention_specs`**
+#### **`attention_specs`** (Deprecated)
+
+**Note: This context manager is deprecated and shows warnings. Use the main API with direct mesh/spec parameters instead.**
 
 A context manager for setting the attention specifications for `query` and `key`/`value` tensors. All other specifications in the Kvax are calculated based on these specifications.
 
@@ -462,9 +447,11 @@ kv_specs: ("data", None, "model", None)`
 `query_specs: ("data", "context", None, None)
 kv_specs: ("data", None, None, None)`
 
-#### **`permute_tokens_context_parallelism`**
+#### **`permute_tokens_context_parallelism`** (Legacy API)
 
 A function to permute tokens across the sequence length `(axis==1)` to balance computation of the attention operation between GPUs for the causal mask case. For more details, please see the [Llama 3 training paper](https://arxiv.org/abs/2407.21783). For examples, please refer to the 'How to use' section.
+
+**Note: This function is part of the legacy API. The main API handles token permutation automatically when `permute_tokens_for_load_balance=True` is set in `flash_attention`.**
 
 **Arguments**:
 
@@ -474,9 +461,11 @@ A function to permute tokens across the sequence length `(axis==1)` to balance c
 **Returns**:
 Permuted tensor or tuple of tensors.
 
-#### **`unpermute_tokens_context_parallelism`**
+#### **`unpermute_tokens_context_parallelism`** (Legacy API)
 
 A function to unpermute tokens across the sequence length `(axis==1)` after the `permute_tokens_context_parallelism` function to return them to their original order. For examples, please refer to the 'How to use' section.
+
+**Note: This function is part of the legacy API. The main API handles token unpermutation automatically.**
 
 **Arguments**:
 
