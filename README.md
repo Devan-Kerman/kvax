@@ -55,14 +55,7 @@ More details on Kvax benchmarking and its results can be found in the [blogpost]
 
 ## How to install
 
-Install the latest stable release from pip:
-
-```bash
-pip install kvax
-```
-
-Or install directly from the wheel:
-
+Install the latest stable release from the wheel:
 ```bash
 pip install https://ueaj.dev/python/kvax-0.1.1-py3-none-any.whl
 ```
