@@ -25,9 +25,6 @@ from kvax.utils.typing import AttentionMask, DeviceArray, Specs
 
 logger = logging.getLogger(__name__)
 
-LOG2_CONST = tl.constexpr(1.4426950408889634)  # = 1.0 / ln(2)
-NEG_INF = tl.constexpr(float(jnp.iinfo(jnp.int32).min))
-
 
 @triton.jit
 def make_segment_mask(
@@ -79,6 +76,7 @@ def _flash_attention_forward_kernel_inner(
     use_segment_mask: tl.constexpr,
     assume_sequential_positions: tl.constexpr,
 ):
+    NEG_INF = tl.constexpr(float(jnp.iinfo(jnp.int32).min))
     key_transpose_block_ptr = tl.advance(key_transpose_block_ptr, (0, lower))
     value_block_ptr = tl.advance(value_block_ptr, (lower, 0))
     kv_arange = tl.arange(0, kv_block_size)
@@ -259,6 +257,7 @@ def flash_attention_forward_kernel(
         return
 
     # Load scales
+    LOG2_CONST = tl.constexpr(1.4426950408889634)  # = 1.0 / ln(2)
     q_scale = scale
     q_scale *= LOG2_CONST
 
@@ -746,6 +745,7 @@ def flash_attention_backward_kernel_dquery(
     dquery = tl.zeros([query_block_size, qk_head_dim_pad], dtype=tl.float32)
 
     # Fixed for Triton 3.3.1 compatibility - constexpr doesn't have .to() method
+    LOG2_CONST = tl.constexpr(1.4426950408889634)  # = 1.0 / ln(2)
     qk_scale = scale * LOG2_CONST  # Triton will handle type conversion automatically
 
     if even_qk_head_dims:
@@ -1024,6 +1024,7 @@ def flash_attention_backward_kernel_dkdv(
     value_head_dim_arange = tl.arange(0, value_head_dim)
 
     # Fixed for Triton 3.3.1 compatibility - constexpr doesn't have .to() method
+    LOG2_CONST = tl.constexpr(1.4426950408889634)  # = 1.0 / ln(2)
     qk_scale = scale * LOG2_CONST  # Triton will handle type conversion automatically
 
     kv_block_offset = kv_block_id * kv_block_size + tl.arange(0, kv_block_size)
@@ -1674,7 +1675,7 @@ def flash_attention_backward(
         )
 
     if len(mask_tensors) != 3:
-        raise ValueError("Length of mask_tensors should be equal to two")
+        raise ValueError("Length of mask_tensors should be equal to three")
     mask_dquery = mask_tensors[1]
     mask_dkdv = mask_tensors[2]
 
@@ -2013,7 +2014,7 @@ def _make_flash_attention_partition_specs(
 
 
 
-def flash_attention_triton(
+def flash_attention_triton_legacy(
     query: DeviceArray,
     key: DeviceArray,
     value: DeviceArray,
@@ -2156,3 +2157,85 @@ def flash_attention_triton(
     output = output.transpose((0, 2, 1, 3))
 
     return output
+
+
+def flash_attention_triton(
+    query: DeviceArray,
+    key: DeviceArray,
+    value: DeviceArray,
+    query_positions: DeviceArray,
+    query_segment_ids: DeviceArray,
+    kv_positions: DeviceArray,
+    kv_segment_ids: DeviceArray,
+    mask: tuple[AttentionMask, ...] | None = None,
+    *,
+    mesh: Mesh | None = None,
+    query_spec: tuple[str, ...] | None = None,
+    kv_spec: tuple[str, ...] | None = None,
+    scale: float = 1.0,
+    fwd_params: FlashAttentionParamsConfig | None = None,
+    bwd_params: FlashAttentionParamsConfig | None = None,
+    assume_sequential_positions: bool = False,
+    memory_optimized_gqa_backward: bool = False,
+    permute_tokens_for_load_balance: bool = True,
+    debug: bool = False,
+) -> DeviceArray:
+    """
+    Flash attention with clean API - no context managers required.
+    
+    This is now the main flash_attention_triton function. The old context manager
+    version is available as flash_attention_triton_legacy.
+    
+    Args:
+        query: Query tensor of shape (batch, seq_len, num_heads, head_dim)
+        key: Key tensor of shape (batch, seq_len, num_kv_heads, head_dim)
+        value: Value tensor of shape (batch, seq_len, num_kv_heads, head_dim)
+        query_positions: Query positions (batch, seq_len)
+        query_segment_ids: Query segment IDs (batch, seq_len)
+        kv_positions: KV positions (batch, seq_len)
+        kv_segment_ids: KV segment IDs (batch, seq_len)
+        mask: Attention mask tuple from create_attention_mask
+        mesh: Optional device mesh. If None, runs on single device
+        query_spec: Query sharding spec e.g. ('data', 'sequence', 'tensor', None)
+        kv_spec: KV sharding spec e.g. ('data', None, 'tensor', None)
+        scale: Attention scale factor
+        fwd_params: Forward pass parameters
+        bwd_params: Backward pass parameters
+        assume_sequential_positions: Whether positions are sequential
+        memory_optimized_gqa_backward: Whether to use memory optimized backward
+        permute_tokens_for_load_balance: Whether to permute for load balance
+        debug: Debug mode
+        
+    Returns:
+        Attention output tensor
+    """
+    # Import here to avoid circular imports
+    from kvax.ops.flash_attention_clean import flash_attention as clean_flash_attention
+    
+    # Note: memory_optimized_gqa_backward is not supported in clean API
+    if memory_optimized_gqa_backward:
+        import warnings
+        warnings.warn(
+            "memory_optimized_gqa_backward is not supported in the clean API and will be ignored",
+            UserWarning
+        )
+    
+    return clean_flash_attention(
+        query=query,
+        key=key,
+        value=value,
+        query_positions=query_positions,
+        query_segment_ids=query_segment_ids,
+        kv_positions=kv_positions,
+        kv_segment_ids=kv_segment_ids,
+        mask=mask,
+        mesh=mesh,
+        query_spec=query_spec,
+        kv_spec=kv_spec,
+        scale=scale,
+        fwd_params=fwd_params,
+        bwd_params=bwd_params,
+        assume_sequential_positions=assume_sequential_positions,
+        permute_tokens_for_load_balance=permute_tokens_for_load_balance,
+        debug=debug,
+    )

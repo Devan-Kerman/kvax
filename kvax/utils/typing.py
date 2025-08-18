@@ -4,6 +4,7 @@ import chex
 import jax
 import jax.experimental
 import jax.experimental.shard_map
+from jax import tree_util
 
 DeviceArray = chex.ArrayDevice
 PRNGKey = chex.PRNGKey
@@ -35,3 +36,22 @@ class AttentionMask:
             lower_full_bounds=flatten_mask[2],
             upper_full_bounds=flatten_mask[3],
         )
+
+
+# Register AttentionMask as a JAX pytree
+def _attention_mask_tree_flatten(mask):
+    return (mask.lower_bounds, mask.upper_bounds, mask.lower_full_bounds, mask.upper_full_bounds), None
+
+def _attention_mask_tree_unflatten(aux_data, children):
+    return AttentionMask(
+        lower_bounds=children[0],
+        upper_bounds=children[1], 
+        lower_full_bounds=children[2],
+        upper_full_bounds=children[3],
+    )
+
+tree_util.register_pytree_node(
+    AttentionMask,
+    _attention_mask_tree_flatten,
+    _attention_mask_tree_unflatten
+)

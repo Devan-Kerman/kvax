@@ -1,6 +1,9 @@
 """
 Clean Flash Attention API without context managers.
 
+DEPRECATED: This module is now deprecated. The clean API has been moved to be the
+main flash_attention_triton function. Import directly from kvax.ops instead.
+
 This module provides a simpler API for flash attention that:
 1. Takes mesh and sharding specs directly (no context managers)
 2. Handles None mesh gracefully for single device
@@ -85,17 +88,9 @@ def flash_attention(
         key = key.transpose((0, 2, 1, 3))
         value = value.transpose((0, 2, 1, 3))
         
-        # Flatten mask if provided, or create a simple one
+        # Flatten AttentionMask objects like the original implementation
         if mask is not None:
-            # mask is a tuple of AttentionMask objects, need to flatten each
-            mask_tensors = []
-            for m in mask:
-                if hasattr(m, 'flatten'):
-                    mask_tensors.extend(m.flatten())
-                else:
-                    # Already flattened
-                    mask_tensors.append(m)
-            mask_tensors = tuple(mask_tensors)
+            mask_tensors = tuple(m.flatten() for m in mask)
         else:
             # Create a simple mask when none provided
             # This creates a basic causal mask
@@ -198,16 +193,11 @@ def flash_attention(
     key = key.transpose((0, 2, 1, 3))
     value = value.transpose((0, 2, 1, 3))
     
-    # Prepare mask tensors
+    # Prepare mask tensors - flatten AttentionMask objects 
     if mask is not None:
-        # Flatten mask objects if needed  
-        mask_tensors = []
-        for m in mask:
-            if hasattr(m, 'flatten'):
-                mask_tensors.extend(m.flatten())
-            else:
-                mask_tensors.append(m)
-        mask_args = mask_tensors
+        mask_args = [m.flatten() for m in mask]
+        # Flatten the list of tuples into a single list
+        mask_args = [tensor for mask_tuple in mask_args for tensor in mask_tuple]
     else:
         mask_args = []
     
